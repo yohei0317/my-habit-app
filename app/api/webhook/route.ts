@@ -23,7 +23,6 @@ export async function POST(req: Request) {
   try {
     const { events } = await req.json();
     for (const event of events) {
-      // 1. 「今日の記録」メッセージ対応
       if (event.type === 'message' && event.message.text === '今日の記録') {
         const { data: user } = await supabase.from('users').select('user_id').eq('line_user_id', event.source.userId).single();
         if (!user) continue;
@@ -38,27 +37,27 @@ export async function POST(req: Request) {
             type: 'buttons',
             text: `${h.goal_text} はどうでしたか？`,
             actions: [
-              { type: 'postback', label: 'やった', data: JSON.stringify({ habitId: h.habit_id, status: 'done' }), displayText: 'やった' },
-              { type: 'postback', label: 'やってない', data: JSON.stringify({ habitId: h.habit_id, status: 'not_done' }), displayText: 'やってない' }
+              // 修正：status を 'done' ではなく true / false の文字列として渡す
+              { type: 'postback', label: 'やった', data: JSON.stringify({ habitId: h.habit_id, isDone: true }), displayText: 'やった' },
+              { type: 'postback', label: 'やってない', data: JSON.stringify({ habitId: h.habit_id, isDone: false }), displayText: 'やってない' }
             ]
           }
         }));
         await replyToLine(event.replyToken, messages);
       }
 
-      // 2. ボタン押下（postback）対応
       if (event.type === 'postback') {
         const parsed = JSON.parse(event.postback.data);
         const { data: user } = await supabase.from('users').select('user_id').eq('line_user_id', event.source.userId).single();
         
         if (user) {
-          // 重要：日付を日本時間の今日（YYYY-MM-DD）に固定して保存
           const jstDate = new Date(new Date().getTime() + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
           
+          // 修正：status 列に boolean (true/false) を入れる
           await supabase.from('daily_logs').insert({
             user_id: user.user_id,
-            habit_id: parsed.habitId, // ここをUUIDとして保存
-            status: parsed.status,
+            habit_id: parsed.habitId,
+            status: parsed.isDone, // ここを boolean 型で保存
             logged_date: jstDate
           });
           await replyToLine(event.replyToken, [{ type: 'text', text: '記録しました！' }]);
