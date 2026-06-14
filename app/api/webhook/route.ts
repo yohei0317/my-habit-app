@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   try {
     const { events } = await req.json();
     for (const event of events) {
-      // 1. 「今日の記録」メッセージ対応（Flex Message版）
+      // 1. 「今日の記録」メッセージ対応
       if (event.type === 'message' && event.message.text === '今日の記録') {
         const { data: user } = await supabase.from('users').select('user_id').eq('line_user_id', event.source.userId).single();
         if (!user) continue;
@@ -31,23 +31,24 @@ export async function POST(req: Request) {
         const { data: habits } = await supabase.from('habits').select('habit_id, goal_text').eq('user_id', user.user_id).eq('is_active', true).limit(3);
         if (!habits || habits.length === 0) continue;
 
-        // スクショを再現した Flex Message の構成
-        const flexContents = habits.map((h, i) => ([
-          { type: "text", text: `${i + 1}. ${h.goal_text}`, size: "sm", color: "#666666", margin: "md" },
-          {
-            type: "box", layout: "horizontal", spacing: "md", margin: "sm",
+        // エラーを防ぐため、よりシンプルかつ確実な Flex Message 構成に修正
+        const flexContents: any[] = [];
+        habits.forEach((h, i) => {
+          flexContents.push({ type: "text", text: `${i + 1}. ${h.goal_text}`, size: "md", margin: "lg", weight: "bold" });
+          flexContents.push({
+            type: "box", layout: "horizontal", spacing: "md", margin: "md",
             contents: [
               {
-                type: "button", height: "sm", style: "secondary", color: "#E8F5E9",
-                action: { type: "postback", label: "✓ やった", data: JSON.stringify({ habitId: h.habit_id, isDone: true, title: h.goal_text }), displayText: `${h.goal_text}: やった` }
+                type: "button", style: "primary", color: "#4CAF50", height: "sm",
+                action: { type: "postback", label: "やった", data: JSON.stringify({ habitId: h.habit_id, isDone: true, title: h.goal_text }), displayText: `${h.goal_text}: やった` }
               },
               {
-                type: "button", height: "sm", style: "secondary", color: "#F5F5F5",
-                action: { type: "postback", label: "× 未達成", data: JSON.stringify({ habitId: h.habit_id, isDone: false, title: h.goal_text }), displayText: `${h.goal_text}: 未達成` }
+                type: "button", style: "secondary", color: "#eeeeee", height: "sm",
+                action: { type: "postback", label: "やってない", data: JSON.stringify({ habitId: h.habit_id, isDone: false, title: h.goal_text }), displayText: `${h.goal_text}: やってない` }
               }
             ]
-          }
-        ])).flat();
+          });
+        });
 
         const message = {
           type: "flex",
@@ -59,9 +60,7 @@ export async function POST(req: Request) {
               contents: [
                 { type: "text", text: "📅 今日の習慣チェック", weight: "bold", size: "lg" },
                 { type: "separator", margin: "md" },
-                ...flexContents,
-                { type: "separator", margin: "xl" },
-                { type: "text", text: "🔥 今日も積み上げましょう！", size: "xs", color: "#aaaaaa", margin: "md", textAlign: "center" }
+                ...flexContents
               ]
             }
           }
@@ -83,7 +82,6 @@ export async function POST(req: Request) {
             status: parsed.isDone,
             logged_date: jstDate
           });
-          // 応答はシンプルに
           await replyToLine(event.replyToken, [{ type: 'text', text: `「${parsed.title}」を記録しました！` }]);
         }
       }
