@@ -14,7 +14,6 @@ type Habit = {
   user_id: string;
   goal_text: string;
   is_active: boolean;
-  target_minutes?: number | null;
 };
 
 type GoalSettings = {
@@ -29,6 +28,8 @@ type DailyLog = {
   status: boolean;
   duration?: number | null;
 };
+
+const FIXED_MINUTES_PER_TASK = 5;
 
 function getJstNow() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -154,11 +155,7 @@ export default async function Home({
     { data: filesData },
   ] = await Promise.all([
     supabase.from('users').select('user_id').limit(1),
-    supabase
-      .from('habits')
-      .select('*')
-      .eq('is_active', true)
-      .limit(3),
+    supabase.from('habits').select('*').eq('is_active', true).limit(3),
     supabase.from('goal_settings').select('*').limit(1),
     supabase.from('daily_logs').select('habit_id, logged_date, status, duration'),
     supabase.storage.from('goal-images').list('', {
@@ -183,21 +180,14 @@ export default async function Home({
       })
     : allLogs;
 
-  const dailyTargetMinutes = habits.reduce(
-    (sum, habit) => sum + Number(habit.target_minutes ?? 15),
-    0
-  );
+  const dailyTargetMinutes = habits.length * FIXED_MINUTES_PER_TASK;
 
   const totalMinutes = filteredLogs
     .filter((log) => log.status === true)
     .reduce((sum, log) => {
       const rawDuration = Number(log.duration ?? 0);
       if (rawDuration > 0) return sum + rawDuration;
-
-      const matchedHabit = habits.find(
-        (habit) => String(habit.habit_id) === String(log.habit_id)
-      );
-      return sum + Number(matchedHabit?.target_minutes ?? 15);
+      return sum + FIXED_MINUTES_PER_TASK;
     }, 0);
 
   const targetDays = Number(goal?.target_days ?? 90);
@@ -230,7 +220,6 @@ export default async function Home({
       }}
     >
       <div style={{ maxWidth: '860px', margin: '0 auto' }}>
-        {/* Header */}
         <header
           style={{
             display: 'flex',
@@ -269,7 +258,6 @@ export default async function Home({
           </a>
         </header>
 
-        {/* Goal photo */}
         <section
           style={{
             background: '#FFFFFF',
@@ -309,7 +297,6 @@ export default async function Home({
           )}
         </section>
 
-        {/* Goal text */}
         <section
           style={{
             background: '#FFFFFF',
@@ -356,7 +343,6 @@ export default async function Home({
           </div>
         </section>
 
-        {/* Total effort + progress */}
         <section
           style={{
             display: 'grid',
@@ -486,7 +472,6 @@ export default async function Home({
           </div>
         </section>
 
-        {/* Month title */}
         <section
           style={{
             background: '#FFFFFF',
@@ -540,7 +525,6 @@ export default async function Home({
           </div>
         </section>
 
-        {/* Combined summary calendar */}
         <section
           style={{
             background: '#FFFFFF',
@@ -606,7 +590,6 @@ export default async function Home({
           </div>
         </section>
 
-        {/* Habit cards */}
         <section style={{ display: 'grid', gap: '20px' }}>
           {habits.map((habit, index) => {
             const calendar = buildHabitCalendar(
@@ -616,7 +599,6 @@ export default async function Home({
               displayMonth
             );
             const streak = calculateHabitStreak(filteredLogs, String(habit.habit_id));
-            const targetMinutes = Number(habit.target_minutes ?? 15);
 
             return (
               <article
@@ -672,7 +654,7 @@ export default async function Home({
                         fontWeight: 600,
                       }}
                     >
-                      1回 {targetMinutes}分
+                      1回 5分
                     </div>
                   </div>
                 </div>
@@ -745,7 +727,6 @@ export default async function Home({
           })}
         </section>
 
-        {/* Share button */}
         <footer style={{ marginTop: '28px' }}>
           <a
             href={shareUrl}
