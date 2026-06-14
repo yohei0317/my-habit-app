@@ -42,7 +42,7 @@ export default async function Home() {
     return { day: i + 1, done: doneDates.has(dateStr) };
   });
 
-  // 連続日数の集計（簡易版：直近のログ数を表示）
+  // 連続日数の集計
   const totalDoneCount = logs?.length || 0;
 
   return (
@@ -52,7 +52,7 @@ export default async function Home() {
         <div style={{ fontSize: '0.9rem' }}>👤 ユーザー</div>
       </header>
 
-      {/* 目標写真エリア：最新のアップロード画像を表示 */}
+      {/* 目標写真エリア */}
       <section style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px', textAlign: 'center', marginBottom: '20px', backgroundColor: '#fff' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: '#888' }}>現在の目標写真</p>
         {goalImageUrl ? (
@@ -99,8 +99,22 @@ export default async function Home() {
         </div>
       </div>
       
-      <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        <a href="/setup" style={{ fontSize: '0.8rem', color: '#0070f3', textDecoration: 'none' }}>⚙️ 写真や習慣を変更する</a>
+      {/* 修正：Setup画面へのリンク */}
+      <div style={{ marginTop: '40px', textAlign: 'center', padding: '10px' }}>
+        <a 
+          href="/setup" 
+          style={{ 
+            fontSize: '0.9rem', 
+            color: '#0070f3', 
+            textDecoration: 'none',
+            border: '1px solid #0070f3',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            display: 'inline-block'
+          }}
+        >
+          ⚙️ 写真や習慣を変更する
+        </a>
       </div>
     </main>
   );
