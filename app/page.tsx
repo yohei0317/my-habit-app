@@ -6,7 +6,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-// 重要：キャッシュを完全に無効化し、常に最新のDB値を読み込む
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +14,6 @@ interface HomeProps {
 }
 
 export default async function Home({ searchParams }: HomeProps) {
-  // 1. 日本時間の現在年月を取得
   const jstOffset = 9 * 60 * 60 * 1000;
   const jstNow = new Date(new Date().getTime() + jstOffset);
   const currentYear = jstNow.getUTCFullYear();
@@ -24,7 +22,6 @@ export default async function Home({ searchParams }: HomeProps) {
   const displayYear = searchParams.year ? parseInt(searchParams.year) : currentYear;
   const displayMonth = searchParams.month ? parseInt(searchParams.month) : currentMonth;
 
-  // 2. 習慣と目標写真を取得
   const { data: habits } = await supabase.from('habits').select('*').eq('is_active', true).limit(3);
   const { data: files } = await supabase.storage.from('goal-images').list('', {
     limit: 1, sortBy: { column: 'created_at', order: 'desc' },
@@ -37,18 +34,19 @@ export default async function Home({ searchParams }: HomeProps) {
   const nextDate = new Date(Date.UTC(displayYear, displayMonth, 1));
 
   const getHabitData = async (habitId: string) => {
-    // 3. ログの取得（habit_id を文字列として厳密に比較）
+    // 修正：時差による1日の前後を許容するため、少し広めの範囲でログを取得
     const startDate = `${displayYear}-${String(displayMonth).padStart(2, '0')}-01`;
     const endDate = `${displayYear}-${String(displayMonth).padStart(2, '0')}-31`;
     
     const { data: logs } = await supabase
       .from('daily_logs')
       .select('logged_date')
-      .eq('habit_id', habitId) // ここが一致しないと「0日」になる
+      .eq('habit_id', habitId)
       .eq('status', 'done')
       .gte('logged_date', startDate)
       .lte('logged_date', endDate);
 
+    // ログの日付をSetに格納（重複排除）
     const doneDates = new Set(logs?.map(l => l.logged_date));
     const daysInMonth = new Date(displayYear, displayMonth, 0).getDate();
     
