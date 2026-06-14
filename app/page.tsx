@@ -1,7 +1,14 @@
-import { supabase } from '@/lib/supabase';
+import React from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+// 直接環境変数からクライアントを作成（外部ファイルに頼らないことでエラーを回避）
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
 
 export default async function Home() {
-  // DBから目標写真やログを取得（実際にはユーザーIDで絞り込み）
+  // DBからデータを取得
   const { data: habits } = await supabase.from('habits').select('*');
   const { data: goal } = await supabase.from('goal_settings').select('*').single();
 
@@ -11,7 +18,7 @@ export default async function Home() {
       
       {/* 目標写真エリア */}
       <div className="mb-6 border rounded-xl overflow-hidden shadow-sm">
-        <img src={goal?.goal_photo_url || "/api/placeholder/400/250"} alt="目標" className="w-full h-48 object-cover" />
+        <img src={goal?.goal_photo_url || "https://via.placeholder.com/400x250"} alt="目標" className="w-full h-48 object-cover" />
         <div className="p-3 bg-gray-50 text-center font-medium">✨ 目標：英語で会議！</div>
       </div>
 
