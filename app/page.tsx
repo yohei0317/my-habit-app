@@ -18,12 +18,10 @@ export default async function Home({ searchParams }: { searchParams: { month?: s
   const { data: files } = await supabase.storage.from('goal-images').list('', { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
   const goalImageUrl = files?.[0]?.name ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/goal-images/${files[0].name}` : null;
 
-  // 連続日数を計算するロジック
   const calculateStreak = (logs: any[]) => {
     const dates = new Set(logs.map(l => l.logged_date));
     let streak = 0;
     let checkDate = new Date(jstNow);
-    
     while (true) {
       const dateStr = checkDate.toISOString().split('T')[0];
       if (dates.has(dateStr)) {
@@ -55,33 +53,67 @@ export default async function Home({ searchParams }: { searchParams: { month?: s
   };
 
   return (
-    <main style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#fcfcfc', minHeight: '100vh' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0 }}>🏆 習慣化管理</h2>
-        <a href="/setup" style={{ fontSize: '0.8rem', color: '#333', textDecoration: 'none', padding: '5px 12px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff' }}>👤 設定・目標変更</a>
+    <main style={{ maxWidth: '600px', margin: '0 auto', padding: '30px 20px', fontFamily: '"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif', backgroundColor: '#F8F9FA', minHeight: '100vh', color: '#333' }}>
+      {/* ナビゲーションヘッダー */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+        <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, letterSpacing: '0.05em' }}>HABIT TRACKER</h1>
+        <a href="/setup" style={{ fontSize: '0.8rem', color: '#666', textDecoration: 'none', padding: '8px 16px', borderRadius: '50px', border: '1px solid #E0E0E0', backgroundColor: '#FFF', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span>⚙️</span> 設定・編集
+        </a>
       </header>
 
-      <div style={{ textAlign: 'center', marginBottom: '20px', fontWeight: 'bold' }}>{displayYear}年 {displayMonth}月</div>
+      {/* 現在の年月表示 */}
+      <div style={{ textAlign: 'center', marginBottom: '25px' }}>
+        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{displayYear}年 {displayMonth}月</h2>
+        <div style={{ width: '40px', height: '3px', background: '#FF8C00', margin: '10px auto' }}></div>
+      </div>
 
-      <section style={{ border: '1px solid #ddd', borderRadius: '12px', padding: '10px', textAlign: 'center', marginBottom: '30px', backgroundColor: '#fff' }}>
-        {goalImageUrl ? <img src={goalImageUrl} style={{ width: '100%', maxHeight: '300px', objectFit: 'contain' }} alt="目標" /> : <p>写真を設定してください</p>}
+      {/* 目標ビジュアルカード */}
+      <section style={{ border: 'none', borderRadius: '20px', padding: '12px', textAlign: 'center', marginBottom: '40px', backgroundColor: '#FFF', boxShadow: '0 10px 30px rgba(0,0,0,0.08)' }}>
+        {goalImageUrl ? (
+          <img src={goalImageUrl} style={{ width: '100%', borderRadius: '14px', objectFit: 'cover', display: 'block' }} alt="Goal" />
+        ) : (
+          <div style={{ padding: '60px 20px', color: '#AAA' }}>右上のボタンから目標写真を設定しましょう</div>
+        )}
       </section>
 
-      {await Promise.all((habits || []).map(async (habit) => {
+      {/* 習慣別カレンダーセクション */}
+      {await Promise.all((habits || []).map(async (habit, index) => {
         const { calendar, streak } = await getHabitData(habit.habit_id);
+        const icons = ['🔥', '📚', '🎯'];
         return (
-          <div key={habit.habit_id} style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eee' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, borderLeft: '4px solid #ff8c00', paddingLeft: '10px' }}>✨ {habit.goal_text}</h3>
-              <div style={{ fontSize: '1.2rem' }}>
-                {streak >= 21 ? '⭐' : '🔘'} <span style={{ fontSize: '0.8rem', color: '#666' }}>{streak}日連続</span>
+          <div key={habit.habit_id} style={{ marginBottom: '30px', padding: '25px', backgroundColor: '#FFF', borderRadius: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #F0F0F0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: '#999', fontWeight: 600, display: 'block', marginBottom: '4px' }}>HABIT {index + 1}</span>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {icons[index] || '✨'} {habit.goal_text}
+                </h3>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: streak >= 21 ? '#FFF4E5' : '#F8F9FA', padding: '4px 12px', borderRadius: '50px', border: streak >= 21 ? '1px solid #FF8C00' : '1px solid #EEE' }}>
+                  <span style={{ fontSize: '1rem' }}>{streak >= 21 ? '⭐' : '🔝'}</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: streak >= 21 ? '#FF8C00' : '#333' }}>{streak}日連続</span>
+                </div>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px', textAlign: 'center' }}>
+            
+            {/* モダンカレンダーグリッド */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center' }}>
+              {['SUN','MON','TUE','WED','THU','FRI','SAT'].map(d => (
+                <div key={d} style={{ fontSize: '0.6rem', color: '#CCC', fontWeight: 800, paddingBottom: '5px' }}>{d}</div>
+              ))}
               {calendar.map(d => (
-                <div key={d.day} style={{ height: '35px', border: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', fontSize: '0.8rem', backgroundColor: d.done ? '#fff9f0' : '#fff' }}>
+                <div key={d.day} style={{ 
+                  height: '40px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', fontSize: '0.85rem', fontWeight: 600, borderRadius: '10px',
+                  backgroundColor: d.done ? '#FFF4E5' : '#FAFAFA',
+                  color: d.done ? '#FF8C00' : '#444',
+                  transition: 'all 0.2s ease'
+                }}>
                   {d.day}
-                  {d.done && <span style={{ position: 'absolute', color: '#ff8c00', fontSize: '1.8rem', top: '50%', left: '50%', transform: 'translate(-50%, -55%)' }}>○</span>}
+                  {d.done && (
+                    <div style={{ position: 'absolute', width: '32px', height: '32px', border: '2px solid #FF8C00', borderRadius: '50%', opacity: 0.3 }}></div>
+                  )}
                 </div>
               ))}
             </div>
@@ -89,16 +121,17 @@ export default async function Home({ searchParams }: { searchParams: { month?: s
         );
       }))}
 
-      {/* 紹介ボタン（最下部へ移動） */}
-      <div style={{ marginTop: '40px', marginBottom: '20px', textAlign: 'center' }}>
+      {/* シェアセクション */}
+      <div style={{ marginTop: '50px', padding: '0 10px' }}>
         <a 
           href="https://line.me/R/nv/recommendOA/@YOUR_BOT_BASIC_ID" 
-          style={{ display: 'block', padding: '15px', background: '#06C755', color: '#fff', textDecoration: 'none', borderRadius: '10px', fontWeight: 'bold' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '18px', background: '#06C755', color: '#FFF', textDecoration: 'none', borderRadius: '18px', fontWeight: 700, fontSize: '1rem', boxShadow: '0 4px 15px rgba(6,199,85,0.2)' }}
         >
-          お友達にアプリを紹介する ➔
+          <span>💬</span> お友達にアプリを紹介する
         </a>
-        <p style={{ fontSize: '0.7rem', color: '#888', marginTop: '8px' }}>
-          ※リンクを機能させるには @YOUR_BOT_BASIC_ID をあなたのLINE公式アカウントIDに書き換えてください。
+        <p style={{ fontSize: '0.7rem', color: '#CCC', marginTop: '15px', textAlign: 'center', lineHeight: 1.5 }}>
+          © 2026 Habit Tracker App<br />
+          積み重ねが未来の自分を作ります
         </p>
       </div>
     </main>
