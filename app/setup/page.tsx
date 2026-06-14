@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -8,9 +8,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
+const FIXED_MINUTES_PER_TASK = 5;
+
 type HabitInput = {
   title: string;
-  mins: string;
 };
 
 export default function SetupPage() {
@@ -25,23 +26,9 @@ export default function SetupPage() {
   );
   const [targetDays, setTargetDays] = useState('90');
 
-  const [habit1, setHabit1] = useState<HabitInput>({
-    title: 'TED',
-    mins: '15',
-  });
-  const [habit2, setHabit2] = useState<HabitInput>({
-    title: '単語',
-    mins: '15',
-  });
-  const [habit3, setHabit3] = useState<HabitInput>({
-    title: 'インプット',
-    mins: '15',
-  });
-
-  const habits = useMemo(
-    () => [habit1, habit2, habit3],
-    [habit1, habit2, habit3]
-  );
+  const [habit1, setHabit1] = useState<HabitInput>({ title: 'TED' });
+  const [habit2, setHabit2] = useState<HabitInput>({ title: '単語' });
+  const [habit3, setHabit3] = useState<HabitInput>({ title: 'インプット' });
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -71,30 +58,12 @@ export default function SetupPage() {
             .eq('is_active', true)
             .limit(3);
 
-          if (habitsData?.[0]) {
-            setHabit1({
-              title: habitsData[0].goal_text || '',
-              mins: String(habitsData[0].target_minutes ?? 15),
-            });
-          }
-          if (habitsData?.[1]) {
-            setHabit2({
-              title: habitsData[1].goal_text || '',
-              mins: String(habitsData[1].target_minutes ?? 15),
-            });
-          }
-          if (habitsData?.[2]) {
-            setHabit3({
-              title: habitsData[2].goal_text || '',
-              mins: String(habitsData[2].target_minutes ?? 15),
-            });
-          }
+          if (habitsData?.[0]) setHabit1({ title: habitsData[0].goal_text || '' });
+          if (habitsData?.[1]) setHabit2({ title: habitsData[1].goal_text || '' });
+          if (habitsData?.[2]) setHabit3({ title: habitsData[2].goal_text || '' });
         }
 
-        if (
-          filesData?.[0]?.name &&
-          process.env.NEXT_PUBLIC_SUPABASE_URL
-        ) {
+        if (filesData?.[0]?.name && process.env.NEXT_PUBLIC_SUPABASE_URL) {
           setPreviewUrl(
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/goal-images/${filesData[0].name}`
           );
@@ -121,13 +90,8 @@ export default function SetupPage() {
   const handleSave = async () => {
     if (loading) return;
 
-    const cleanedHabits = habits.map((habit) => ({
-      title: habit.title.trim(),
-      mins: habit.mins.trim(),
-    }));
-
     if (!goalSlogan.trim()) {
-      alert('メイン目標を入力してください');
+      alert('目標を入力してください');
       return;
     }
 
@@ -136,8 +100,8 @@ export default function SetupPage() {
       return;
     }
 
-    if (cleanedHabits.some((habit) => !habit.title || !habit.mins)) {
-      alert('3つの習慣名と分数をすべて入力してください');
+    if (!habit1.title.trim() || !habit2.title.trim() || !habit3.title.trim()) {
+      alert('3つの習慣名をすべて入力してください');
       return;
     }
 
@@ -155,7 +119,6 @@ export default function SetupPage() {
 
       const userId = usersData[0].user_id;
 
-      // 画像アップロード
       if (file) {
         const safeName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
         const { error: uploadError } = await supabase.storage
@@ -165,12 +128,9 @@ export default function SetupPage() {
             upsert: false,
           });
 
-        if (uploadError) {
-          throw uploadError;
-        }
+        if (uploadError) throw uploadError;
       }
 
-      // goal_settings 保存
       const { error: goalError } = await supabase
         .from('goal_settings')
         .upsert(
@@ -184,11 +144,8 @@ export default function SetupPage() {
           { onConflict: 'user_id' }
         );
 
-      if (goalError) {
-        throw goalError;
-      }
+      if (goalError) throw goalError;
 
-      // 既存習慣取得
       const { data: existingHabits, error: existingHabitsError } = await supabase
         .from('habits')
         .select('habit_id')
@@ -196,18 +153,15 @@ export default function SetupPage() {
         .eq('is_active', true)
         .limit(3);
 
-      if (existingHabitsError) {
-        throw existingHabitsError;
-      }
+      if (existingHabitsError) throw existingHabitsError;
 
-      const setters = [habit1, habit2, habit3];
+      const habitList = [habit1, habit2, habit3];
 
       for (let i = 0; i < 3; i++) {
-        const currentHabit = setters[i];
+        const currentHabit = habitList[i];
         const payload = {
           user_id: userId,
           goal_text: currentHabit.title.trim(),
-          target_minutes: Number(currentHabit.mins),
           is_active: true,
         };
 
@@ -219,17 +173,13 @@ export default function SetupPage() {
             .update(payload)
             .eq('habit_id', existingHabitId);
 
-          if (updateError) {
-            throw updateError;
-          }
+          if (updateError) throw updateError;
         } else {
           const { error: insertError } = await supabase
             .from('habits')
             .insert(payload);
 
-          if (insertError) {
-            throw insertError;
-          }
+          if (insertError) throw insertError;
         }
       }
 
@@ -237,9 +187,7 @@ export default function SetupPage() {
       window.location.href = `/?refresh=${Date.now()}`;
     } catch (error) {
       console.error(error);
-      alert(
-        '保存エラーが発生しました。goal_settings の user_id 一意制約、habits.target_minutes 列、Storage policy を確認してください。'
-      );
+      alert('保存エラーが発生しました。goal_settings の user_id 設定、Storage policy を確認してください。');
     } finally {
       setLoading(false);
     }
@@ -316,7 +264,6 @@ export default function SetupPage() {
             </div>
           ) : (
             <>
-              {/* Photo */}
               <section style={{ marginBottom: '24px' }}>
                 <div
                   style={{
@@ -378,7 +325,6 @@ export default function SetupPage() {
                 </div>
               </section>
 
-              {/* Main goal */}
               <section style={{ marginBottom: '20px' }}>
                 <label
                   style={{
@@ -392,7 +338,6 @@ export default function SetupPage() {
                 <input
                   value={goalSlogan}
                   onChange={(e) => setGoalSlogan(e.target.value)}
-                  placeholder="例: TOEFL90点を取得 / 3か月後の会議でネイティブとやり合える"
                   style={{
                     width: '100%',
                     height: '52px',
@@ -406,7 +351,6 @@ export default function SetupPage() {
                 />
               </section>
 
-              {/* Target days */}
               <section style={{ marginBottom: '24px' }}>
                 <label
                   style={{
@@ -421,7 +365,6 @@ export default function SetupPage() {
                   type="number"
                   value={targetDays}
                   onChange={(e) => setTargetDays(e.target.value)}
-                  placeholder="90"
                   style={{
                     width: '100%',
                     height: '52px',
@@ -435,7 +378,6 @@ export default function SetupPage() {
                 />
               </section>
 
-              {/* Habits */}
               <section style={{ marginBottom: '8px' }}>
                 <div
                   style={{
@@ -446,7 +388,7 @@ export default function SetupPage() {
                     marginBottom: '12px',
                   }}
                 >
-                  各タスクの時間（分）
+                  習慣設定（全タスク固定5分）
                 </div>
 
                 {[
@@ -454,82 +396,49 @@ export default function SetupPage() {
                   { label: '習慣2', value: habit2, setter: setHabit2 },
                   { label: '習慣3', value: habit3, setter: setHabit3 },
                 ].map((item, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 120px',
-                      gap: '12px',
-                      marginBottom: '14px',
-                    }}
-                  >
-                    <div>
-                      <label
-                        style={{
-                          display: 'block',
-                          marginBottom: '8px',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {item.label} 名前
-                      </label>
-                      <input
-                        value={item.value.title}
-                        onChange={(e) =>
-                          item.setter({
-                            ...item.value,
-                            title: e.target.value,
-                          })
-                        }
-                        placeholder="例: TED"
-                        style={{
-                          width: '100%',
-                          height: '52px',
-                          borderRadius: '14px',
-                          border: '1px solid #E2E8F0',
-                          padding: '0 14px',
-                          fontSize: '1rem',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        style={{
-                          display: 'block',
-                          marginBottom: '8px',
-                          fontWeight: 700,
-                        }}
-                      >
-                        分
-                      </label>
-                      <input
-                        type="number"
-                        value={item.value.mins}
-                        onChange={(e) =>
-                          item.setter({
-                            ...item.value,
-                            mins: e.target.value,
-                          })
-                        }
-                        placeholder="15"
-                        style={{
-                          width: '100%',
-                          height: '52px',
-                          borderRadius: '14px',
-                          border: '1px solid #E2E8F0',
-                          padding: '0 14px',
-                          fontSize: '1rem',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
+                  <div key={index} style={{ marginBottom: '14px' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {item.label}
+                    </label>
+                    <input
+                      value={item.value.title}
+                      onChange={(e) =>
+                        item.setter({
+                          title: e.target.value,
+                        })
+                      }
+                      style={{
+                        width: '100%',
+                        height: '52px',
+                        borderRadius: '14px',
+                        border: '1px solid #E2E8F0',
+                        padding: '0 14px',
+                        fontSize: '1rem',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
                   </div>
                 ))}
               </section>
+
+              <div
+                style={{
+                  marginTop: '6px',
+                  marginBottom: '14px',
+                  fontSize: '0.9rem',
+                  color: '#64748B',
+                  fontWeight: 700,
+                }}
+              >
+                ※ いったん全タスク 5分固定で動かします
+              </div>
 
               <button
                 onClick={handleSave}
