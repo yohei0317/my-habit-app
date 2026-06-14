@@ -19,13 +19,6 @@ type LineEvent =
       replyToken: string;
       source: { userId?: string };
       postback: { data: string };
-    }
-  | {
-      type: string;
-      replyToken?: string;
-      source?: { userId?: string };
-      message?: { type?: string; text?: string };
-      postback?: { data?: string };
     };
 
 type WebhookBody = {
@@ -34,10 +27,6 @@ type WebhookBody = {
 
 async function replyToLine(replyToken: string, messages: any[]) {
   const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-
-  if (!channelAccessToken) {
-    throw new Error('LINE_CHANNEL_ACCESS_TOKEN が未設定です');
-  }
 
   const res = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
@@ -57,7 +46,7 @@ async function replyToLine(replyToken: string, messages: any[]) {
   }
 }
 
-function todayJstLikeIsoDate() {
+function todayString() {
   return new Date().toISOString().split('T')[0];
 }
 
@@ -67,19 +56,18 @@ export async function POST(req: Request) {
     const events = body.events || [];
 
     for (const event of events) {
-      // 1) 「今日の記録」と送られたらボタンを返す
       if (
         event.type === 'message' &&
-        event.message?.type === 'text' &&
+        event.message.type === 'text' &&
         event.message.text === '今日の記録'
       ) {
-        const lineUserId = event.source?.userId;
+        const lineUserId = event.source.userId;
 
         if (!lineUserId) {
           await replyToLine(event.replyToken, [
             {
               type: 'text',
-              text: 'userId を取得できませんでした。1対1トークで試してください。',
+              text: 'userId を取得できませんでした。',
             },
           ]);
           continue;
@@ -95,7 +83,7 @@ export async function POST(req: Request) {
           await replyToLine(event.replyToken, [
             {
               type: 'text',
-              text: 'まだユーザー連携が完了していません。Supabase の users テーブルに line_user_id を登録してください。',
+              text: `まだユーザー連携が完了していません。line_user_id: ${lineUserId}`,
             },
           ]);
           continue;
@@ -153,9 +141,8 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // 2) postback を受け取ったら daily_logs に保存
       if (event.type === 'postback') {
-        const lineUserId = event.source?.userId;
+        const lineUserId = event.source.userId;
 
         if (!lineUserId) {
           await replyToLine(event.replyToken, [
@@ -170,7 +157,7 @@ export async function POST(req: Request) {
         let parsedData: { habitId?: string | number; status?: string } = {};
 
         try {
-          parsedData = JSON.parse(event.postback?.data || '{}');
+          parsedData = JSON.parse(event.postback.data || '{}');
         } catch {
           await replyToLine(event.replyToken, [
             {
@@ -191,7 +178,7 @@ export async function POST(req: Request) {
           await replyToLine(event.replyToken, [
             {
               type: 'text',
-              text: 'ユーザー連携が見つかりませんでした。',
+              text: `ユーザー連携が見つかりません。line_user_id: ${lineUserId}`,
             },
           ]);
           continue;
@@ -201,7 +188,7 @@ export async function POST(req: Request) {
           user_id: user.user_id,
           habit_id: parsedData.habitId,
           status: parsedData.status,
-          logged_date: todayJstLikeIsoDate(),
+          logged_date: todayString(),
         });
 
         if (insertError) {
