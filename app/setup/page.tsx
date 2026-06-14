@@ -20,7 +20,7 @@ export default function SetupPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      // 1. 写真のアップロード
+      // 1. 画像アップロード
       if (file) {
         const fileName = `${Date.now()}_goal.png`;
         await supabase.storage.from('goal-images').upload(fileName, file);
@@ -47,8 +47,11 @@ export default function SetupPage() {
         }
       }
 
-      alert("設定を保存しました！");
-      window.location.assign("/");
+      alert("設定を保存しました！最新の状態を読み込みます。");
+      
+      // 重要：キャッシュを回避するためにタイムスタンプを付与してリダイレクト
+      window.location.assign("/?refresh=" + Date.now());
+      
     } catch (error) {
       console.error(error);
       alert("保存エラーが発生しました。");
@@ -79,7 +82,7 @@ export default function SetupPage() {
               <input type="number" style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', textAlign: 'center' }} value={h.mins} onChange={(e) => [setHabit1, setHabit2, setHabit3][i]({...h, mins: e.target.value})} required />
             </div>
           ))}
-          <button type="submit" disabled={loading} style={{ width: '100%', padding: '20px', background: '#1E293B', color: '#FFF', borderRadius: '20px', fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', marginTop: '24px' }}>
+          <button type="submit" disabled={loading} style={{ width: '100%', padding: '20px', background: '#1E293B', color: '#FFF', borderRadius: '20px', fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', marginTop: '24px', border: 'none' }}>
             {loading ? "SAVING..." : "保存してダッシュボードへ"}
           </button>
         </form>
