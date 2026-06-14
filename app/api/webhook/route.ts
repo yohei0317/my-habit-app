@@ -27,19 +27,14 @@ type WebhookBody = {
 
 async function replyToLine(replyToken: string, messages: any[]) {
   const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-
   const res = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${channelAccessToken}`,
     },
-    body: JSON.stringify({
-      replyToken,
-      messages,
-    }),
+    body: JSON.stringify({ replyToken, messages }),
   });
-
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`LINE reply error: ${res.status} ${text}`);
@@ -56,96 +51,73 @@ export async function POST(req: Request) {
     const events = body.events || [];
 
     for (const event of events) {
-      // 1) 「今日の記録」メッセージへの応答
       if (
         event.type === 'message' &&
         event.message.type === 'text' &&
         event.message.text === '今日の記録'
       ) {
         const lineUserId = event.source.userId;
+        if (!lineUserId) continue;
 
-        if (!lineUserId) {
-          await replyToLine(event.replyToken, [
-            { type: 'text', text: 'userId を取得できませんでした。' },
-          ]);
-          continue;
-        }
-
-        // ユーザー取得
-        const { data: user, error: userError } = await supabase
+        // 1. ユーザー取得
+        const { data: user } = await supabase
           .from('users')
           .select('user_id')
           .eq('line_user_id', lineUserId)
           .single();
 
-        if (userError || !user) {
-          await replyToLine(event.replyToken, [
-            { type: 'text', text: `まだユーザー連携が完了していません。line_user_id: ${lineUserId}` },
-          ]);
+        if (!user) {
+          await replyToLine(event.replyToken, [{ type: 'text', text: `未連携です。ID: ${lineUserId}` }]);
           continue;
         }
 
-        // 習慣取得 (カラム名を habit_id, goal_text に修正)
-        const { data: habits, error: habitsError } = await supabase
+        // 2. 習慣を最大3つ取得
+        const { data: habits } = await supabase
           .from('habits')
           .select('habit_id, goal_text')
           .eq('user_id', user.user_id)
           .eq('is_active', true)
-          .limit(1);
+          .limit(3);
 
-        const habit = habits?.[0];
-
-        if (habitsError || !habit) {
-          await replyToLine(event.replyToken, [
-            { type: 'text', text: 'まだ習慣が登録されていません。Supabase の habits テーブルを確認してください。' },
-          ]);
+        if (!habits || habits.length === 0) {
+          await replyToLine(event.replyToken, [{ type: 'text', text: '習慣が登録されていません。' }]);
           continue;
         }
 
-        // ボタンテンプレート送信
-        await replyToLine(event.replyToken, [
-          {
-            type: 'template',
-            altText: '今日の記録',
-            template: {
-              type: 'buttons',
-              text: `${habit.goal_text} は今日はどうでしたか？`,
-              actions: [
-                {
-                  type: 'postback',
-                  label: 'やった',
-                  data: JSON.stringify({
-                    habitId: habit.habit_id,
-                    status: 'done',
-                  }),
-                  displayText: 'やった',
-                },
-                {
-                  type: 'postback',
-                  label: 'やってない',
-                  data: JSON.stringify({
-                    habitId: habit.habit_id,
-                    status: 'not_done',
-                  }),
-                  displayText: 'やってない',
-                },
-              ],
-            },
-          },
-        ]);
+        // 3. 最大3通のボタンメッセージを作成
+        const messages = habits.map((habit) => ({
+          type: 'template',
+          altText: `記録: ${habit.goal_text}`,
+          template: {
+            type: 'buttons',
+            text: `${habit.goal_text} はどうでしたか？`,
+            actions: [
+              {
+                type: 'postback',
+                label: 'やった',
+                data: JSON.stringify({ habitId: habit.habit_id, status: 'done' }),
+                displayText: `${habit.goal_text}: やった`
+              },
+              {
+                type: 'postback',
+                label: 'やってない',
+                data: JSON.stringify({ habitId: habit.habit_id, status: 'not_done' }),
+                displayText: `${habit.goal_text}: やってない`
+              }
+            ]
+          }
+        }));
+
+        await replyToLine(event.replyToken, messages);
         continue;
       }
 
-      // 2) ボタン押下（postback）時の処理
       if (event.type === 'postback') {
         const lineUserId = event.source.userId;
         let parsedData: { habitId?: string; status?: string } = {};
-
         try {
           parsedData = JSON.parse(event.postback.data || '{}');
-        } catch {
-          continue;
-        }
+        } catch { continue; }
 
         const { data: user } = await supabase
           .from('users')
@@ -160,21 +132,14 @@ export async function POST(req: Request) {
             status: parsedData.status,
             logged_date: todayString(),
           });
-
-          await replyToLine(event.replyToken, [
-            {
-              type: 'text',
-              text: parsedData.status === 'done' ? '記録しました！お疲れ様です✨' : '記録しました。明日は頑張りましょう！',
-            },
-          ]);
+          // 返信はシンプルに
+          await replyToLine(event.replyToken, [{ type: 'text', text: '記録しました！' }]);
         }
         continue;
       }
     }
-
     return new Response('OK', { status: 200 });
   } catch (error) {
-    console.error(error);
     return new Response('Error', { status: 500 });
   }
 }
