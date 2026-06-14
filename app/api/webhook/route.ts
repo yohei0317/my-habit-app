@@ -1,7 +1,15 @@
 import { WebhookEvent, MessagingApiClient } from '@line/bot-sdk';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
-const client = new MessagingApiClient({ channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN! });
+// 直接環境変数からクライアントを作成（外部ファイルへの依存を解消）
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
+
+const client = new MessagingApiClient({ 
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN! 
+});
 
 export async function POST(req: Request) {
   const { events } = await req.json() as { events: WebhookEvent[] };
@@ -12,7 +20,12 @@ export async function POST(req: Request) {
       const lineUserId = event.source.userId!;
 
       // 1. ユーザーID取得
-      const { data: user } = await supabase.from('users').select('user_id').eq('line_user_id', lineUserId).single();
+      const { data: user } = await supabase
+        .from('users')
+        .select('user_id')
+        .eq('line_user_id', lineUserId)
+        .single();
+        
       if (!user) continue;
 
       // 2. ログ保存
