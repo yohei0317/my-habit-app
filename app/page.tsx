@@ -8,15 +8,21 @@ const supabase = createClient(
 
 export const dynamic = 'force-dynamic';
 
-export default async function Home() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+interface HomeProps {
+  searchParams: { month?: string; year?: string };
+}
 
-  // 1. 全習慣を取得 (最大3つ)
+export default async function Home({ searchParams }: HomeProps) {
+  // 日本時間での現在時刻
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  
+  // 表示する年月の決定（URLパラメータがあれば優先、なければ今月）
+  const displayYear = searchParams.year ? parseInt(searchParams.year) : jstNow.getUTCFullYear();
+  const displayMonth = searchParams.month ? parseInt(searchParams.month) - 1 : jstNow.getUTCMonth();
+
   const { data: habits } = await supabase.from('habits').select('*').eq('is_active', true).limit(3);
   
-  // Storageから最新の画像取得
   const { data: files } = await supabase.storage.from('goal-images').list('', {
     limit: 1,
     sortBy: { column: 'created_at', order: 'desc' },
@@ -25,20 +31,29 @@ export default async function Home() {
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/goal-images/${files[0].name}`
     : null;
 
-  // 2. カレンダーと日数の集計用関数
+  // 月移動のリンク生成
+  const prevMonth = displayMonth === 0 ? 12 : displayMonth;
+  const prevYear = displayMonth === 0 ? displayYear - 1 : displayYear;
+  const nextMonth = displayMonth === 11 ? 1 : displayMonth + 2;
+  const nextYear = displayMonth === 11 ? displayYear + 1 : displayYear;
+
   const getHabitData = async (habitId: string) => {
-    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const startDate = new Date(Date.UTC(displayYear, displayMonth, 1)).toISOString().split('T')[0];
+    const endDate = new Date(Date.UTC(displayYear, displayMonth + 1, 0)).toISOString().split('T')[0];
+    
     const { data: logs } = await supabase
       .from('daily_logs')
       .select('logged_date')
       .eq('habit_id', habitId)
       .eq('status', 'done')
-      .gte('logged_date', startDate);
+      .gte('logged_date', startDate)
+      .lte('logged_date', endDate);
 
     const doneDates = new Set(logs?.map(l => l.logged_date));
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+    
     const calendar = Array.from({ length: daysInMonth }, (_, i) => {
-      const dateStr = new Date(year, month, i + 1).toISOString().split('T')[0];
+      const dateStr = new Date(Date.UTC(displayYear, displayMonth, i + 1)).toISOString().split('T')[0];
       return { day: i + 1, done: doneDates.has(dateStr) };
     });
 
@@ -46,7 +61,7 @@ export default async function Home() {
   };
 
   return (
-    <main style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#fcfcfc' }}>
+    <main style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#fcfcfc', minHeight: '100vh' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0 }}>🏆 習慣化管理</h2>
         <a href="/setup" style={{ fontSize: '0.8rem', color: '#333', textDecoration: 'none', padding: '5px 12px', border: '1px solid #ddd', borderRadius: '20px', backgroundColor: '#fff' }}>
@@ -54,32 +69,42 @@ export default async function Home() {
         </a>
       </header>
 
-      {/* 共通の目標写真 */}
-      <section style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '10px', textAlign: 'center', marginBottom: '30px', backgroundColor: '#fff' }}>
-        {goalImageUrl ? <img src={goalImageUrl} style={{ width: '100%', maxHeight: '300px', objectFit: 'contain' }} alt="目標" /> : <p>写真を設定してください</p>}
+      {/* 月切り替えナビゲーション */}
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', marginBottom: '20px', backgroundColor: '#fff', padding: '10px', borderRadius: '12px', border: '1px solid #eee' }}>
+        <a href={`/?year=${prevYear}&month=${prevMonth}`} style={{ textDecoration: 'none', fontSize: '1.2rem', color: '#ff8c00' }}>◀</a>
+        <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{displayYear}年 {displayMonth + 1}月</h2>
+        <a href={`/?year=${nextYear}&month=${nextMonth}`} style={{ textDecoration: 'none', fontSize: '1.2rem', color: '#ff8c00' }}>▶</a>
+      </div>
+
+      <section style={{ border: '1px solid #ddd', borderRadius: '12px', padding: '10px', textAlign: 'center', marginBottom: '30px', backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+        {goalImageUrl ? <img src={goalImageUrl} style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px' }} alt="目標" /> : <p>設定画面から目標写真をアップしてください</p>}
       </section>
 
-      {/* 各習慣ごとのセクションを並べる */}
       {await Promise.all((habits || []).map(async (habit) => {
         const { calendar, streak } = await getHabitData(habit.habit_id);
         return (
-          <div key={habit.habit_id} style={{ marginBottom: '40px', paddingBottom: '20px', borderBottom: '2px solid #eee' }}>
-            <h3 style={{ borderLeft: '5px solid #ff8c00', paddingLeft: '10px', marginBottom: '10px' }}>✨ {habit.goal_text}</h3>
+          <div key={habit.habit_id} style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eee', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 15px 0', borderLeft: '5px solid #ff8c00', paddingLeft: '10px', fontSize: '1.1rem' }}>✨ {habit.goal_text}</h3>
             
-            {/* カレンダー */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', marginBottom: '15px' }}>
-              {['日','月','火','水','木','金','土'].map(d => <div key={d} style={{ fontSize: '0.7rem', color: '#999' }}>{d}</div>)}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px', textAlign: 'center', marginBottom: '20px' }}>
+              {['日','月','火','水','木','金','土'].map(d => <div key={d} style={{ fontSize: '0.7rem', color: '#999', paddingBottom: '5px' }}>{d}</div>)}
               {calendar.map(d => (
-                <div key={d.day} style={{ height: '30px', border: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', fontSize: '0.8rem', backgroundColor: '#fff' }}>
-                  {d.day}
-                  {d.done && <span style={{ position: 'absolute', color: 'orange', fontSize: '1.2rem', top: '-4px' }}>○</span>}
+                <div key={d.day} style={{ 
+                  height: '35px', border: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', fontSize: '0.85rem', borderRadius: '4px',
+                  backgroundColor: d.done ? '#fff9f0' : '#fff'
+                }}>
+                  <span style={{ color: d.done ? '#ccc' : '#333' }}>{d.day}</span>
+                  {d.done && (
+                    <span style={{ 
+                      position: 'absolute', color: '#ff8c00', fontSize: '1.8rem', fontWeight: 'bold', lineHeight: 1, top: '50%', left: '50%', transform: 'translate(-50%, -55%)', opacity: 0.8
+                    }}>○</span>
+                  )}
                 </div>
               ))}
             </div>
 
-            {/* 連続記録 */}
-            <div style={{ background: '#fff5f0', padding: '10px', borderRadius: '8px', textAlign: 'center', border: '1px solid #ffe0d0' }}>
-              今月の達成：<strong>{streak}日</strong>
+            <div style={{ background: '#fff5f0', padding: '12px', borderRadius: '8px', textAlign: 'center', border: '1px solid #ffe0d0' }}>
+              この月の達成：<strong style={{ fontSize: '1.2rem', color: '#ff4500' }}>{streak}日</strong>
             </div>
           </div>
         );
