@@ -1,0 +1,14 @@
+name: Daily Habit Notification
+on:
+  schedule:
+    - cron: '0 11 * * *' # UTC 11:00 = 日本時間 20:00
+  workflow_dispatch: # 手動実行ボタンを表示させる
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Notification API
+        run: |
+          curl -X POST "https://${{ secrets.VERCEL_PROJECT_URL }}/api/notify" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
