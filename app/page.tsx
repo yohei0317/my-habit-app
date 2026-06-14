@@ -18,13 +18,11 @@ export default async function Home({ searchParams }: { searchParams: { month?: s
   const { data: files } = await supabase.storage.from('goal-images').list('', { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
   const goalImageUrl = files?.[0]?.name ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/goal-images/${files[0].name}` : null;
 
-  // 1. 全期間の累計努力時間
   const { data: allDoneLogs } = await supabase.from('daily_logs').select('duration, logged_date, habit_id').eq('status', true);
   const totalMinutes = allDoneLogs?.reduce((sum, log) => sum + (log.duration || 0), 0) || 0;
   const totalHours = Math.floor(totalMinutes / 60);
   const remainingMins = totalMinutes % 60;
 
-  // 2. バロメーター（目標90日 × 45分想定 = 100%）
   const targetDays = 90;
   const goalTotalMins = targetDays * 45;
   const progressPercent = Math.min(Math.round((totalMinutes / goalTotalMins) * 100), 100);
@@ -62,68 +60,56 @@ export default async function Home({ searchParams }: { searchParams: { month?: s
       
       {/* HEADER */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#000' }}>MOTIVATOR</h1>
-        <a href="/setup" style={{ fontSize: '0.75rem', color: '#666', textDecoration: 'none', padding: '8px 16px', borderRadius: '12px', border: '1px solid #EEE', fontWeight: 600, backgroundColor: '#FAFAFA' }}>SETTINGS</a>
+        <h1 style={{ margin: 0, fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.04em', color: '#000' }}>MOTIVATOR</h1>
+        <a href="/setup" style={{ fontSize: '0.8rem', color: '#666', textDecoration: 'none', padding: '10px 20px', borderRadius: '12px', border: '1px solid #EEE', fontWeight: 700, backgroundColor: '#FAFAFA' }}>SETTINGS</a>
       </header>
 
-      {/* 1. GOAL PHOTO (TOP) - Aspect Ratio Adjusted */}
+      {/* 1. GOAL PHOTO (TOP) */}
       <section style={{ marginBottom: '30px' }}>
-        <div style={{ borderRadius: '24px', overflow: 'hidden', backgroundColor: '#F3F4F6', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <div style={{ borderRadius: '24px', overflow: 'hidden', backgroundColor: '#F3F4F6' }}>
           {goalImageUrl ? (
-            <img src={goalImageUrl} style={{ width: '100%', display: 'block', maxHeight: '250px', objectFit: 'cover' }} alt="Goal" />
+            <img src={goalImageUrl} style={{ width: '100%', display: 'block', maxHeight: '220px', objectFit: 'cover' }} alt="Goal" />
           ) : (
             <div style={{ padding: '60px', textAlign: 'center', color: '#999' }}>No Image Set</div>
           )}
         </div>
-        <h2 style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 800, textAlign: 'center', color: '#000', lineHeight: 1.4 }}>
+        <h2 style={{ marginTop: '20px', fontSize: '1.25rem', fontWeight: 800, textAlign: 'center', color: '#000', lineHeight: 1.4 }}>
           「TOEFL 90点取得！3か月後の会議で勝つ」
         </h2>
       </section>
 
-      {/* 2. TOTAL EFFORT & PROGRESS BAR (SEPARATED SECTIONS) */}
-      <section style={{ marginBottom: '40px', backgroundColor: '#000', borderRadius: '28px', color: '#FFF', padding: '30px', boxShadow: '0 20px 40px rgba(0,0,0,0.12)' }}>
-        {/* Upper: Total Time */}
-        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px', marginBottom: '20px' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.5, letterSpacing: '0.1em', display: 'block', marginBottom: '8px' }}>TOTAL EFFORT</span>
-          <div style={{ fontSize: '2.8rem', fontWeight: 900, lineHeight: 1 }}>
-            {totalHours}<span style={{ fontSize: '1.2rem', opacity: 0.6, marginLeft: '4px' }}>h</span> {remainingMins}<span style={{ fontSize: '1.2rem', opacity: 0.6, marginLeft: '4px' }}>m</span>
-          </div>
-        </div>
-
-        {/* Lower: Progress Bar */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.5 }}>GOAL PROGRESS</span>
-            <span style={{ fontSize: '1rem', fontWeight: 800, color: '#FF8C00' }}>{progressPercent}%</span>
-          </div>
-          <div style={{ height: '10px', width: '100%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: '10px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${progressPercent}%`, backgroundColor: '#FF8C00', borderRadius: '10px', boxShadow: '0 0 20px rgba(255,140,0,0.4)' }}></div>
-          </div>
-          <div style={{ textAlign: 'right', marginTop: '10px', fontSize: '0.7rem', opacity: 0.4 }}>Target: {targetDays} Days</div>
+      {/* 2. TOTAL EFFORT CARD */}
+      <section style={{ marginBottom: '15px', backgroundColor: '#000', borderRadius: '24px', color: '#FFF', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.5, letterSpacing: '0.1em', display: 'block', marginBottom: '8px' }}>TOTAL EFFORT</span>
+        <div style={{ fontSize: '3.2rem', fontWeight: 900, lineHeight: 1 }}>
+          {totalHours}<span style={{ fontSize: '1.4rem', opacity: 0.6, marginLeft: '4px' }}>h</span> {remainingMins}<span style={{ fontSize: '1.4rem', opacity: 0.6, marginLeft: '4px' }}>m</span>
         </div>
       </section>
 
-      {/* 3. HABIT STATUS LIST (RE-ADDED) */}
-      <section style={{ marginBottom: '40px', padding: '0 10px' }}>
-        <h4 style={{ fontSize: '0.8rem', color: '#999', letterSpacing: '0.1em', marginBottom: '15px' }}>CURRENT STATUS</h4>
-        {habits?.map((habit, i) => (
-          <div key={habit.habit_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #F3F4F6' }}>
-            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{i + 1}. {habit.goal_text}</span>
-            <span style={{ color: '#FF8C00', fontWeight: 800, fontSize: '0.95rem' }}>🔥 {calculateStreak(habit.habit_id)}日連続</span>
-          </div>
-        ))}
+      {/* 3. PROGRESS BAR CARD (SEPARATED) */}
+      <section style={{ marginBottom: '40px', backgroundColor: '#000', borderRadius: '24px', color: '#FFF', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.5 }}>GOAL PROGRESS</span>
+          <span style={{ fontSize: '1.1rem', fontWeight: 900, color: '#FF8C00' }}>{progressPercent}%</span>
+        </div>
+        <div style={{ height: '12px', width: '100%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: '10px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${progressPercent}%`, backgroundColor: '#FF8C00', borderRadius: '10px' }}></div>
+        </div>
+        <div style={{ textAlign: 'right', marginTop: '10px', fontSize: '0.7rem', opacity: 0.4 }}>Target: {targetDays} Days</div>
       </section>
 
-      {/* 4. CALENDARS BY HABIT */}
-      <div style={{ fontSize: '1.1rem', fontWeight: 900, textAlign: 'center', marginBottom: '30px', color: '#CCC' }}>{displayYear} . {displayMonth}</div>
+      {/* 4. DATE DISPLAY */}
+      <div style={{ fontSize: '1.2rem', fontWeight: 900, textAlign: 'center', marginBottom: '30px', color: '#1A1A1A' }}>{displayYear} . {displayMonth}</div>
 
+      {/* 5. CALENDARS WITH STREAK BELOW */}
       {habits?.map((habit) => {
         const calendar = getHabitCalendar(habit.habit_id);
+        const streak = calculateStreak(habit.habit_id);
         return (
-          <div key={habit.habit_id} style={{ marginBottom: '35px', padding: '25px', backgroundColor: '#FFF', borderRadius: '24px', border: '1px solid #F3F4F6', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '1rem', fontWeight: 800, borderLeft: '4px solid #FF8C00', paddingLeft: '12px' }}>{habit.goal_text}</h3>
+          <div key={habit.habit_id} style={{ marginBottom: '40px', padding: '25px', backgroundColor: '#FFF', borderRadius: '28px', border: '1px solid #F3F4F6', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: 800, borderLeft: '5px solid #FF8C00', paddingLeft: '12px' }}>{habit.goal_text}</h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '20px' }}>
               {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} style={{ fontSize: '0.65rem', color: '#DDD', fontWeight: 900, marginBottom: '4px' }}>{d}</div>)}
               {calendar.map(d => (
                 <div key={d.day} style={{ 
@@ -136,13 +122,20 @@ export default async function Home({ searchParams }: { searchParams: { month?: s
                 </div>
               ))}
             </div>
+
+            {/* STREAK MOVED HERE (BELOW CALENDAR) */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ backgroundColor: '#F9FAFB', padding: '8px 20px', borderRadius: '50px', border: '1px solid #F0F0F0', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1rem' }}>🔥</span>
+                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1A1A1A' }}>{streak}日連続達成中</span>
+              </div>
+            </div>
           </div>
         );
       })}
 
-      {/* FOOTER 소개 BUTTON */}
       <footer style={{ marginTop: '60px', paddingBottom: '40px' }}>
-        <a href={`https://line.me/R/nv/recommendOA/@YOUR_BOT_BASIC_ID`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '64px', background: '#06C755', color: '#FFF', textDecoration: 'none', borderRadius: '20px', fontWeight: 800, fontSize: '1.05rem', boxShadow: '0 10px 25px rgba(6,199,85,0.2)' }}>
+        <a href={`https://line.me/R/nv/recommendOA/@YOUR_BOT_BASIC_ID`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '64px', background: '#06C755', color: '#FFF', textDecoration: 'none', borderRadius: '20px', fontWeight: 800, fontSize: '1.1rem', boxShadow: '0 10px 25px rgba(6,199,85,0.2)' }}>
           お友達にアプリを紹介する ➔
         </a>
       </footer>
