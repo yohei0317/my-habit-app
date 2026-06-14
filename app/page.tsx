@@ -1,5 +1,4 @@
-'use client';
-import React, { useState } from 'react';
+import React from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -7,96 +6,156 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-export default function SetupPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [goalSlogan, setGoalSlogan] = useState('TOEFL 90点取得！3か月後の会議で勝つ');
-  const [targetDays, setTargetDays] = useState('90');
-  const [habit1, setHabit1] = useState({ title: '3分シャドーイング', mins: '15' });
-  const [habit2, setHabit2] = useState({ title: '単語・言い回し', mins: '15' });
-  const [habit3, setHabit3] = useState({ title: '少しでも英文読解', mins: '15' });
-  const [loading, setLoading] = useState(false);
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (loading) return;
-    
-    setLoading(true);
-    try {
-      // 1. 画像のアップロード
-      if (file) {
-        const fileName = `${Date.now()}_goal.png`;
-        const { error: uploadError } = await supabase.storage
-          .from('goal-images')
-          .upload(fileName, file);
-        if (uploadError) throw uploadError;
+export default async function Home({ searchParams }: { searchParams: { month?: string; year?: string } }) {
+  const jstNow = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
+  const displayYear = searchParams.year ? parseInt(searchParams.year) : jstNow.getUTCFullYear();
+  const displayMonth = searchParams.month ? parseInt(searchParams.month) : jstNow.getUTCMonth() + 1;
+
+  const { data: habits } = await supabase.from('habits').select('*').eq('is_active', true).limit(3);
+  const { data: files } = await supabase.storage.from('goal-images').list('', { limit: 1, sortBy: { column: 'created_at', order: 'desc' } });
+  const goalImageUrl = files?.[0]?.name ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/goal-images/${files[0].name}` : null;
+
+  const { data: allDoneLogs } = await supabase.from('daily_logs').select('duration, logged_date, habit_id').eq('status', true);
+  const totalMinutes = allDoneLogs?.reduce((sum, log) => sum + (log.duration || 0), 0) || 0;
+
+  const targetDays = 90;
+  const goalTotalMins = targetDays * 45;
+  const progressPercent = Math.min(Math.round((totalMinutes / goalTotalMins) * 100), 100);
+
+  const calculateStreak = (habitId: string) => {
+    const dates = new Set((allDoneLogs || []).filter(l => l.habit_id === habitId).map(l => l.logged_date));
+    let streak = 0;
+    let checkDate = new Date(jstNow);
+    while (true) {
+      const s = checkDate.toISOString().split('T')[0];
+      if (dates.has(s)) { streak++; checkDate.setDate(checkDate.getDate() - 1); }
+      else {
+        if (streak === 0 && s === jstNow.toISOString().split('T')[0]) { checkDate.setDate(checkDate.getDate() - 1); continue; }
+        break;
       }
-
-      // 2. 完了通知
-      alert("設定を保存しました。ダッシュボードへ移動します。");
-      
-      // 3. 確実にダッシュボードへ戻る
-      window.location.assign("/");
-      
-    } catch (error: any) {
-      console.error(error);
-      alert("エラーが発生しました: " + (error.message || "不明なエラー"));
-    } finally {
-      setLoading(false);
     }
+    return streak;
+  };
+
+  const getHabitCalendar = (habitId: string) => {
+    const startStr = `${displayYear}-${String(displayMonth).padStart(2, '0')}-01`;
+    const endStr = `${displayYear}-${String(displayMonth).padStart(2, '0')}-31`;
+    const monthLogs = (allDoneLogs || []).filter(l => l.habit_id === habitId && l.logged_date >= startStr && l.logged_date <= endStr);
+    const doneDates = new Set(monthLogs.map(l => l.logged_date));
+    const daysInMonth = new Date(displayYear, displayMonth, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const d = i + 1;
+      const dateStr = `${displayYear}-${String(displayMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      return { day: d, done: doneDates.has(dateStr) };
+    });
   };
 
   return (
-    <main style={{ 
-      display: 'flex', justifyContent: 'center', alignItems: 'center', 
-      minHeight: '100vh', width: '100%', backgroundColor: '#F8F9FC', padding: '20px'
-    }}>
-      <div style={{ 
-        width: '100%', maxWidth: '500px', backgroundColor: '#FFF', 
-        padding: '40px', borderRadius: '32px', boxShadow: '0 20px 50px rgba(0,0,0,0.04)',
-        border: '1px solid #F1F5F9'
-      }}>
-        <h2 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: '32px', textAlign: 'center', color: '#1E293B' }}>
-          ⚙️ MOTIVATOR 設定
-        </h2>
-        
-        <form onSubmit={handleSave}>
-          <div style={{ marginBottom: '24px', border: '2px dashed #E2E8F0', borderRadius: '24px', padding: '30px', textAlign: 'center', backgroundColor: '#F8F9FC' }}>
-            <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 700, color: '#64748B' }}>目標写真をアップロード</p>
-            <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ fontSize: '0.8rem' }} />
+    <main style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px', fontFamily: '"Inter", "Noto Sans JP", sans-serif', backgroundColor: '#F8F9FC', minHeight: '100vh', color: '#1E293B' }}>
+      
+      {/* HEADER */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em' }}>MOTIVATOR</h1>
+        <a href="/setup" style={{ fontSize: '0.85rem', color: '#64748B', textDecoration: 'none', padding: '10px 24px', borderRadius: '16px', backgroundColor: '#FFF', border: '1px solid #E2E8F0', fontWeight: 600, boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+          ⚙️ 設定・編集
+        </a>
+      </header>
+
+      {/* 1. GOAL PHOTO (TOP) - Large Rounding */}
+      <section style={{ marginBottom: '32px' }}>
+        <div style={{ borderRadius: '24px', overflow: 'hidden', backgroundColor: '#FFF', padding: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.03)' }}>
+          {goalImageUrl ? (
+            <img src={goalImageUrl} style={{ width: '100%', borderRadius: '20px', display: 'block', maxHeight: '300px', objectFit: 'cover' }} alt="Goal" />
+          ) : (
+            <div style={{ padding: '80px 20px', textAlign: 'center', color: '#94A3B8' }}>No Image Set</div>
+          )}
+        </div>
+        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+          <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#1E293B' }}>
+            「TOEFL 90点取得！3か月後の会議で勝つ」
+          </h2>
+        </div>
+      </section>
+
+      {/* 2. TOTAL & PROGRESS (HORIZONTAL) - Clean Modern Style */}
+      <section style={{ display: 'flex', gap: '20px', marginBottom: '48px', alignItems: 'stretch' }}>
+        {/* Total Mins */}
+        <div style={{ flex: '0 0 160px', backgroundColor: '#FFF', borderRadius: '24px', padding: '24px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #F1F5F9' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.1em', display: 'block', marginBottom: '8px' }}>TOTAL EFFORT</span>
+          <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#E84A4A', lineHeight: 1 }}>{totalMinutes.toLocaleString()}</div>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94A3B8' }}>mins</span>
+        </div>
+
+        {/* Progress Bar Card */}
+        <div style={{ flex: 1, backgroundColor: '#FFF', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #F1F5F9' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', letterSpacing: '0.1em' }}>GOAL PROGRESS</span>
+            <div style={{ backgroundColor: '#FFECEC', color: '#E84A4A', padding: '4px 12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 800 }}>{progressPercent}%</div>
           </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94A3B8', display: 'block', marginBottom: '8px' }}>MAIN GOAL</label>
-            <input style={{ width: '100%', padding: '14px', borderRadius: '16px', border: '1px solid #E2E8F0', fontSize: '1rem' }} value={goalSlogan} onChange={(e) => setGoalSlogan(e.target.value)} required />
+          <div style={{ height: '8px', width: '100%', backgroundColor: '#F1F5F9', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${progressPercent}%`, backgroundColor: '#E84A4A', borderRadius: '4px' }}></div>
           </div>
+        </div>
+      </section>
 
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94A3B8', display: 'block', marginBottom: '8px' }}>TARGET DAYS</label>
-            <input type="number" style={{ width: '100%', padding: '14px', borderRadius: '16px', border: '1px solid #E2E8F0', fontSize: '1rem' }} value={targetDays} onChange={(e) => setTargetDays(e.target.value)} required />
-          </div>
-
-          <p style={{ fontSize: '0.8rem', fontWeight: 900, marginBottom: '16px', color: '#1E293B' }}>HABIT SETTINGS</p>
-          {[habit1, habit2, habit3].map((h, i) => (
-            <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-              <input style={{ flex: 2, padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0' }} value={h.title} onChange={(e) => [setHabit1, setHabit2, setHabit3][i]({...h, title: e.target.value})} required />
-              <input type="number" style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', textAlign: 'center' }} value={h.mins} onChange={(e) => [setHabit1, setHabit2, setHabit3][i]({...h, mins: e.target.value})} required />
-            </div>
-          ))}
-
-          <button 
-            type="submit"
-            disabled={loading} 
-            style={{ 
-              width: '100%', padding: '20px', background: '#1E293B', color: '#FFF', 
-              borderRadius: '20px', marginTop: '24px', border: 'none',
-              fontWeight: 800, fontSize: '1.05rem', cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 10px 20px rgba(30,41,59,0.1)', opacity: loading ? 0.7 : 1
-            }}
-          >
-            {loading ? "保存中..." : "保存してダッシュボードへ"}
-          </button>
-        </form>
+      {/* 3. MONTH INDICATOR */}
+      <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '16px', backgroundColor: '#FFF', padding: '12px 32px', borderRadius: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+          <span style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em' }}>{displayYear}.{displayMonth}</span>
+        </div>
       </div>
+
+      {/* 4. INDIVIDUAL HABIT CARDS */}
+      {habits?.map((habit, index) => {
+        const calendar = getHabitCalendar(habit.habit_id);
+        const streak = calculateStreak(habit.habit_id);
+        const iconBg = ['#FFECEC', '#E0F2FE', '#F0FDF4'][index] || '#F1F5F9';
+        const iconColor = ['#E84A4A', '#0284C7', '#16A34A'][index] || '#64748B';
+
+        return (
+          <div key={habit.habit_id} style={{ marginBottom: '40px', padding: '32px', backgroundColor: '#FFF', borderRadius: '28px', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', border: '1px solid #F1F5F9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '28px' }}>
+              <div style={{ width: '48px', height: '48px', backgroundColor: iconBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
+                {['🎯', '📖', '🎧'][index] || '✨'}
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>{habit.goal_text}</h3>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px', textAlign: 'center', marginBottom: '32px' }}>
+              {['SUN','MON','TUE','WED','THU','FRI','SAT'].map(d => <div key={d} style={{ fontSize: '0.65rem', color: '#94A3B8', fontWeight: 700, marginBottom: '4px' }}>{d}</div>)}
+              {calendar.map(d => (
+                <div key={d.day} style={{ 
+                  height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', fontSize: '1rem', fontWeight: 700, borderRadius: '14px',
+                  backgroundColor: d.done ? '#FFECEC' : '#F8F9FC', 
+                  color: d.done ? '#E84A4A' : '#CBD5E1',
+                  transition: 'all 0.2s ease'
+                }}>
+                  {d.day}
+                  {d.done && <div style={{ position: 'absolute', width: '8px', height: '8px', backgroundColor: '#E84A4A', borderRadius: '50%', bottom: '6px' }}></div>}
+                </div>
+              ))}
+            </div>
+
+            {/* STREAK DISPLAY */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ backgroundColor: '#F8F9FC', padding: '10px 24px', borderRadius: '16px', display: 'inline-flex', alignItems: 'center', gap: '10px', border: '1px solid #F1F5F9' }}>
+                <span style={{ fontSize: '1rem' }}>🔥</span>
+                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1E293B' }}>{streak}日連続達成中</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* SHARE BUTTON */}
+      <footer style={{ marginTop: '64px', paddingBottom: '40px' }}>
+        <a href={`https://line.me/R/nv/recommendOA/@YOUR_BOT_BASIC_ID`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '72px', background: '#06C755', color: '#FFF', textDecoration: 'none', borderRadius: '24px', fontWeight: 800, fontSize: '1.1rem', boxShadow: '0 12px 24px rgba(6,199,85,0.15)' }}>
+          お友達にアプリを紹介する ➔
+        </a>
+      </footer>
     </main>
   );
 }
