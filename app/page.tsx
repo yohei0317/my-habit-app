@@ -34,19 +34,18 @@ export default async function Home({ searchParams }: HomeProps) {
   const nextDate = new Date(Date.UTC(displayYear, displayMonth, 1));
 
   const getHabitData = async (habitId: string) => {
-    // 修正：時差による1日の前後を許容するため、少し広めの範囲でログを取得
     const startDate = `${displayYear}-${String(displayMonth).padStart(2, '0')}-01`;
     const endDate = `${displayYear}-${String(displayMonth).padStart(2, '0')}-31`;
     
+    // 修正：UUID型の文字列比較を確実に行う
     const { data: logs } = await supabase
       .from('daily_logs')
       .select('logged_date')
-      .eq('habit_id', habitId)
+      .eq('habit_id', habitId.trim())
       .eq('status', 'done')
       .gte('logged_date', startDate)
       .lte('logged_date', endDate);
 
-    // ログの日付をSetに格納（重複排除）
     const doneDates = new Set(logs?.map(l => l.logged_date));
     const daysInMonth = new Date(displayYear, displayMonth, 0).getDate();
     
