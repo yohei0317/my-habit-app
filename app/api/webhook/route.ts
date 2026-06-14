@@ -56,6 +56,7 @@ export async function POST(req: Request) {
     const events = body.events || [];
 
     for (const event of events) {
+      // 1) 「今日の記録」メッセージへの応答
       if (
         event.type === 'message' &&
         event.message.type === 'text' &&
@@ -65,14 +66,12 @@ export async function POST(req: Request) {
 
         if (!lineUserId) {
           await replyToLine(event.replyToken, [
-            {
-              type: 'text',
-              text: 'userId を取得できませんでした。',
-            },
+            { type: 'text', text: 'userId を取得できませんでした。' },
           ]);
           continue;
         }
 
+        // ユーザー取得
         const { data: user, error: userError } = await supabase
           .from('users')
           .select('user_id')
@@ -81,45 +80,42 @@ export async function POST(req: Request) {
 
         if (userError || !user) {
           await replyToLine(event.replyToken, [
-            {
-              type: 'text',
-              text: `まだユーザー連携が完了していません。line_user_id: ${lineUserId}`,
-            },
+            { type: 'text', text: `まだユーザー連携が完了していません。line_user_id: ${lineUserId}` },
           ]);
           continue;
         }
 
+        // 習慣取得 (カラム名を habit_id, goal_text に修正)
         const { data: habits, error: habitsError } = await supabase
           .from('habits')
-          .select('id,title')
+          .select('habit_id, goal_text')
           .eq('user_id', user.user_id)
+          .eq('is_active', true)
           .limit(1);
 
         const habit = habits?.[0];
 
         if (habitsError || !habit) {
           await replyToLine(event.replyToken, [
-            {
-              type: 'text',
-              text: 'まだ習慣が登録されていません。Supabase の habits テーブルを確認してください。',
-            },
+            { type: 'text', text: 'まだ習慣が登録されていません。Supabase の habits テーブルを確認してください。' },
           ]);
           continue;
         }
 
+        // ボタンテンプレート送信
         await replyToLine(event.replyToken, [
           {
             type: 'template',
             altText: '今日の記録',
             template: {
               type: 'buttons',
-              text: `${habit.title} は今日はどうでしたか？`,
+              text: `${habit.goal_text} は今日はどうでしたか？`,
               actions: [
                 {
                   type: 'postback',
                   label: 'やった',
                   data: JSON.stringify({
-                    habitId: habit.id,
+                    habitId: habit.habit_id,
                     status: 'done',
                   }),
                   displayText: 'やった',
@@ -128,7 +124,7 @@ export async function POST(req: Request) {
                   type: 'postback',
                   label: 'やってない',
                   data: JSON.stringify({
-                    habitId: habit.id,
+                    habitId: habit.habit_id,
                     status: 'not_done',
                   }),
                   displayText: 'やってない',
@@ -137,80 +133,41 @@ export async function POST(req: Request) {
             },
           },
         ]);
-
         continue;
       }
 
+      // 2) ボタン押下（postback）時の処理
       if (event.type === 'postback') {
         const lineUserId = event.source.userId;
-
-        if (!lineUserId) {
-          await replyToLine(event.replyToken, [
-            {
-              type: 'text',
-              text: 'userId を取得できませんでした。',
-            },
-          ]);
-          continue;
-        }
-
-        let parsedData: { habitId?: string | number; status?: string } = {};
+        let parsedData: { habitId?: string; status?: string } = {};
 
         try {
           parsedData = JSON.parse(event.postback.data || '{}');
         } catch {
-          await replyToLine(event.replyToken, [
-            {
-              type: 'text',
-              text: 'postback データの解析に失敗しました。',
-            },
-          ]);
           continue;
         }
 
-        const { data: user, error: userError } = await supabase
+        const { data: user } = await supabase
           .from('users')
           .select('user_id')
-          .eq('line_user_id', lineUserId)
+          .eq('line_user_id', lineUserId!)
           .single();
 
-        if (userError || !user) {
+        if (user) {
+          await supabase.from('daily_logs').insert({
+            user_id: user.user_id,
+            habit_id: parsedData.habitId,
+            status: parsedData.status,
+            logged_date: todayString(),
+          });
+
           await replyToLine(event.replyToken, [
             {
               type: 'text',
-              text: `ユーザー連携が見つかりません。line_user_id: ${lineUserId}`,
+              text: parsedData.status === 'done' ? '記録しました！お疲れ様です✨' : '記録しました。明日は頑張りましょう！',
             },
           ]);
-          continue;
         }
-
-        const { error: insertError } = await supabase.from('daily_logs').insert({
-          user_id: user.user_id,
-          habit_id: parsedData.habitId,
-          status: parsedData.status,
-          logged_date: todayString(),
-        });
-
-        if (insertError) {
-          await replyToLine(event.replyToken, [
-            {
-              type: 'text',
-              text: '保存に失敗しました。daily_logs テーブル設定を確認してください。',
-            },
-          ]);
-          continue;
-        }
-
-        await replyToLine(event.replyToken, [
-          {
-            type: 'text',
-            text:
-              parsedData.status === 'done'
-                ? '記録しました！「やった」で保存しました。'
-                : '記録しました！「やってない」で保存しました。',
-          },
-        ]);
-
         continue;
       }
     }
