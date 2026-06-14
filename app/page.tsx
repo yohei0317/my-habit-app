@@ -42,27 +42,41 @@ export default async function Home() {
     return { day: i + 1, done: doneDates.has(dateStr) };
   });
 
-  // 連続日数の集計
+  // 達成回数の集計
   const totalDoneCount = logs?.length || 0;
 
   return (
     <main style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif', backgroundColor: '#fcfcfc' }}>
+      {/* 修正：右上の「設定」から /setup 画面に飛べるようにしました */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0 }}>🏆 習慣化管理</h2>
-        <div style={{ fontSize: '0.9rem' }}>👤 ユーザー</div>
+        <a 
+          href="/setup" 
+          style={{ 
+            fontSize: '0.9rem', 
+            color: '#333', 
+            textDecoration: 'none', 
+            padding: '5px 12px', 
+            border: '1px solid #ddd', 
+            borderRadius: '20px',
+            backgroundColor: '#fff'
+          }}
+        >
+          👤 設定・目標変更
+        </a>
       </header>
 
       {/* 目標写真エリア */}
       <section style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px', textAlign: 'center', marginBottom: '20px', backgroundColor: '#fff' }}>
-        <p style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: '#888' }}>現在の目標写真</p>
+        <p style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: '#888' }}>現在の目標</p>
         {goalImageUrl ? (
           <img 
             src={goalImageUrl} 
-            style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '4px' }}
+            style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '4px' }}
             alt="目標" 
           />
         ) : (
-          <div style={{ padding: '40px', background: '#eee', color: '#999' }}>設定画面から写真をアップロードしてください</div>
+          <div style={{ padding: '40px', background: '#eee', color: '#999' }}>右上の「設定」から写真をアップロードしてください</div>
         )}
       </section>
 
@@ -82,7 +96,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* 連続記録 & 習慣カード */}
+      {/* 合計回数 & 習慣カード */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '15px' }}>
         <section style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px', backgroundColor: '#fff', textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: '0.8rem', color: '#888' }}>今月の合計達成</p>
@@ -93,28 +107,10 @@ export default async function Home() {
           {habits?.map((h, i) => (
             <div key={i} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '10px', backgroundColor: '#fff', textAlign: 'center' }}>
               <div style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{h.goal_text}</div>
-              <div style={{ fontSize: '0.7rem', color: '#ff8c00', marginTop: '5px' }}>🔥 習慣継続中</div>
+              <div style={{ fontSize: '0.7rem', color: '#ff8c00', marginTop: '5px' }}>🔥 継続中</div>
             </div>
           ))}
         </div>
-      </div>
-      
-      {/* 修正：Setup画面へのリンク */}
-      <div style={{ marginTop: '40px', textAlign: 'center', padding: '10px' }}>
-        <a 
-          href="/setup" 
-          style={{ 
-            fontSize: '0.9rem', 
-            color: '#0070f3', 
-            textDecoration: 'none',
-            border: '1px solid #0070f3',
-            padding: '8px 16px',
-            borderRadius: '20px',
-            display: 'inline-block'
-          }}
-        >
-          ⚙️ 写真や習慣を変更する
-        </a>
       </div>
     </main>
   );
